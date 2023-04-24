@@ -1,25 +1,32 @@
 const {Client, GatewayIntentBits, Partials} = require('discord.js');
 const fs = require('fs');
-const {prefix, token, emoji_stash_servers} = require('./config.json');
+const {
+  prefix,
+  token,
+  emoji_stash_servers,
+  setup_required,
+} = require('./config.json');
 const {words, ALL_WORDS} = require('./words.js');
 const emojis = require('./emojis.json');
 
 //instance of the bot
 const client = new Client({
   intents: [
-   GatewayIntentBits.Guilds,
-  GatewayIntentBits.GuildMessages,
-GatewayIntentBits.MessageContent,
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
   partials: [Partials.Channel],
 });
 
-client.on('ready', async () => { 
+client.on('ready', async () => {
   console.log(`Logged in as ${client.user.tag}!`);
-  await setupEmote();
+  if (setup_required) {
+    await setupEmote();
+  }
 });
 
-let games = {};
+let games = {}; // initial object to use as temporary key/value 
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
@@ -33,16 +40,6 @@ client.on('messageCreate', async (message) => {
     case 'start':
       sendGame(message);
       break;
-    case 'add-green':
-      await addEmote(message, 'green');
-      break;
-case 'add-gray':
-      await addEmote(message, 'gray');
-      break;
-      case 'add-yellow':
-      await addEmote(message, 'yellow');
-      break;
-
   }
 });
 
@@ -249,33 +246,43 @@ function getAlphabetIndex(int) {
   const baseCharCode = 'a'.charCodeAt(0);
   return String.fromCharCode(baseCharCode + int);
 }
-async function setupEmote () {
-  console.log('Setting up Emotes...\nPlease wait till it’s completes...');
-  
-let emojiObj = {};
-let colors = ['green', 'yellow', 'gray'];
-for (let i = 0; i < 3; i++) {
-  console.log(`Adding ${colors[i]} emojis...`);
-  let guild = client.guilds.cache.get(emoji_stash_servers[i]);
-  for (let j = 0; j < 26; j++) {
-   let crEmote = emojis[colors[i]][getAlphabetIndex(j)];
-const regex = /\d+(\.\d+)?/g;
-const matches = crEmote.match(regex);
-   let attachment = `https://cdn.discordapp.com/emojis/${matches[0]}.png`;
-     let name = `${colors[i]}_${getAlphabetIndex(j)}`;
-  let emoji = await guild.emojis.create({ attachment: attachment, name: name });
-  emojiObj.green[getAlphabetIndex(j)] = `<:${emoji.name}:${emoji.id}>`;
-}
-  console.log(`Done!`);
-}
-console.log(`Updating emojis.json file...`);
-let json = JSON.stringify(emojiObj);
-  fs.writeFile('emojis.json', json, (err) => {
-  if (err) throw err;
-  console.log('Process Completed\nemojis.json file configured successfully!');
-});
- 
+async function setupEmote() {
+  console.log('Setting up Emotes...\nPlease wait till it completes...');
 
+  let emojiObj = {
+    green: {},
+    gray: {},
+    yellow: {},
+  };
+  let colors = ['green', 'yellow', 'gray'];
+  for (let i = 0; i < 3; i++) {
+    console.log(`Adding ${colors[i]} emojis...`);
+    let guild = client.guilds.cache.get(emoji_stash_servers[i]);
+    for (let j = 0; j < 26; j++) {
+      let crEmote = emojis[colors[i]][getAlphabetIndex(j)];
+      const regex = /\d+(\.\d+)?/g;
+      const matches = crEmote.match(regex);
+      let attachment = `https://cdn.discordapp.com/emojis/${matches[0]}.png`;
+      let name = `${colors[i]}_${getAlphabetIndex(j)}`;
+      let emoji = await guild.emojis.create({
+        attachment: attachment,
+        name: name,
+      });
+      emojiObj[colors[i]][getAlphabetIndex(j)] = `<:${emoji.name}:${emoji.id}>`;
+    }
+    console.log(`Done!`);
+  }
+  console.log(`Updating emojis.json file...`);
+  let json = JSON.stringify(emojiObj);
+  fs.writeFile('emojis.json', json, (err) => {
+    if (err) throw err;
+    console.log('Process Completed\nemojis.json file configured successfully!');
+  });
+
+  const configObj = JSON.parse(fs.readFileSync('config.json'));
+  configObj.setup_required = false;
+  const updatedConfigData = JSON.stringify(configObj, null, 2);
+  fs.writeFileSync('config.json', updatedConfigData);
 }
 
 client.on('error', function (err) {
@@ -284,4 +291,3 @@ client.on('error', function (err) {
 });
 
 client.login(token);
-  
