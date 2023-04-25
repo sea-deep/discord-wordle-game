@@ -2,7 +2,7 @@ const {Client, GatewayIntentBits, Partials} = require('discord.js');
 const Keyv = require('keyv');
 const fs = require('fs');
 const {prefix, token, emoji_stash_servers, setup_required} = require('./config.json');
-const {words, ALL_WORDS} = require('./words.js');
+const {words, ALL_WORDS} = require('./words.json');
 const emojis = require('./emojis.json');
 
 //instance of the bot
