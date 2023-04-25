@@ -1,11 +1,7 @@
 const {Client, GatewayIntentBits, Partials} = require('discord.js');
+const Keyv = require('keyv');
 const fs = require('fs');
-const {
-  prefix,
-  token,
-  emoji_stash_servers,
-  setup_required,
-} = require('./config.json');
+const {prefix, token, emoji_stash_servers, setup_required} = require('./config.json');
 const {words, ALL_WORDS} = require('./words.js');
 const emojis = require('./emojis.json');
 
@@ -19,14 +15,14 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
+const keyv = new Keyv();
+
 client.on('ready', async () => {
   console.log(`Logged in as ${client.user.tag}!`);
   if (setup_required) {
     await setupEmote();
   }
 });
-
-let games = {}; // initial object to use as temporary key/value 
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
@@ -35,119 +31,28 @@ client.on('messageCreate', async (message) => {
   const command = args.shift().toLowerCase();
   switch (command) {
     case 'help':
-      sendHelp(message);
+      await sendHelp(message);
       break;
     case 'start':
-      sendGame(message);
+      await sendGame(message);
+      break;
+    default:
       break;
   }
 });
 
 client.on('interactionCreate', async (interaction) => {
-  if (interaction.isButton() && interaction.customId == 'guess') {
-    if (interaction.message.content.includes(interaction.user.id)) {
-      interaction.showModal({
-        custom_id: `guessed`,
-        title: `Enter your guess`,
-        components: [
-          {
-            type: 1, // Component row
-            components: [
-              {
-                type: 4, // Text input component, only valid in modals
-                custom_id: 'answer',
-                label: `Enter a valid word:`,
-                style: 1, // 1 for line, 2 for paragraph
-                min_length: 5,
-                max_length: 5,
-                placeholder: 'adieu',
-                required: true,
-              },
-            ],
-          },
-        ],
-      });
-    } else {
-      interaction.reply({content: 'This is not your game.', ephemeral: true});
-    }
-  } else if (interaction.isModalSubmit() && interaction.customId == 'guessed') {
-    interaction.deferUpdate();
-    const value = interaction.fields.getTextInputValue('answer');
-    if (ALL_WORDS.includes(value.toLowerCase())) {
-      const answer = games[interaction.message.id];
-      const wordArr = getColoredWord(answer, value);
-      const newWord = wordArr.join(' ');
-      const currentChances = parseInt(
-        interaction.message.embeds[0].fields[0].value
-      );
-      const chances = currentChances - 1;
-      let arr = interaction.message.embeds[0].description.split('\n').reverse();
-      arr[chances] = newWord;
-      let newDesc = arr.reverse().join('\n');
-
-      const count = arr.reduce(
-        (count, el) => (!el.includes('◻️') ? count + 1 : count),
-        0
-      );
-      let msg = {
-        content: `<@${interaction.user.id}>'s game`,
-        tts: false,
-        components: [
-          {
-            type: 1,
-            components: [
-              {
-                style: 1,
-                label: `GUESS`,
-                custom_id: `guess`,
-                disabled: true,
-                emoji: {
-                  id: null,
-                  name: `🧐`,
-                },
-                type: 2,
-              },
-            ],
-          },
-        ],
-        embeds: [
-          {
-            type: 'rich',
-            title: `WORDLE- GAME OVER`,
-            description: `${newDesc}`,
-            color: 0xff0000,
-            fields: [
-              {
-                name: `🏆 YOU WON`,
-                value: `Your performance: \`${count}/6\``,
-              },
-            ],
-            footer: {
-              text: `Use ${prefix}help for rules and context about the game`,
-            },
-          },
-        ],
-      };
-      if (!wordArr.some((element) => !element.includes('green'))) {
-        delete games[interaction.message.id];
-      } else if (currentChances == 1) {
-        msg.embeds[0].fields[0].name = '🦆 You Lost';
-        msg.embeds[0].fields[0].value = `The word was ${str1}`;
-        delete games[interaction.message.id];
-      } else {
-        msg.components[0].components[0].disabled = false;
-        msg.embeds[0].fields[0].name = '🎚️ Chances Left :';
-        msg.embeds[0].fields[0].value = chances;
-        msg.embeds[0].title = 'WORDLE';
-        msg.embeds[0].description = newDesc;
-      }
-      interaction.message.edit(msg);
-    } else {
-      interaction.reply({
-        content: 'Please enter a valid word.',
-        ephemeral: true,
-      });
-    }
+  if (interaction.type !== 3
+     && interaction.type !== 5) return;
+  switch (interaction.customId) {
+    case 'guess':
+      await createModal(interaction);
+      break;
+    case 'guessed':
+      await executeModal(interaction);
+      break;
+    default:
+      break;
   }
 });
 
@@ -198,10 +103,14 @@ async function sendGame(message) {
       },
     ],
   });
-  games[msg.id] = words[Math.floor(Math.random() * words.length)];
+
+  let key = msg.id;
+  let val = words[Math.floor(Math.random() * words.length)];
+
+  await keyv.set(key, val, 7500000);
 }
-function sendHelp(message) {
-  message.channel.send({
+async function sendHelp(message) {
+  await message.channel.send({
     content: `**HOW TO PLAY**`,
     tts: false,
     embeds: [
@@ -216,6 +125,115 @@ function sendHelp(message) {
       },
     ],
   });
+}
+async function createModal(interaction) {
+  if (interaction.message.content.includes(interaction.user.id)) {
+    await interaction.showModal({
+      custom_id: `guessed`,
+      title: `Enter your guess`,
+      components: [
+        {
+          type: 1, // Component row
+          components: [
+            {
+              type: 4, // Text input component, only valid in modals
+              custom_id: 'answer',
+              label: `Enter a valid word:`,
+              style: 1, // 1 for line, 2 for paragraph
+              min_length: 5,
+              max_length: 5,
+              placeholder: 'adieu',
+              required: true,
+            },
+          ],
+        },
+      ],
+    });
+  } else {
+    await interaction.reply({
+      content: 'This is not your game.',
+      ephemeral: true,
+    });
+  }
+}
+async function executeModal(interaction) {
+  const value = interaction.fields.getTextInputValue('answer');
+  if (ALL_WORDS.includes(value.toLowerCase())) {
+    const answer = await keyv.get(interaction.message.id);
+    const wordArr = getColoredWord(answer, value);
+    const newWord = wordArr.join(' ');
+    const currentChances = parseInt(
+      interaction.message.embeds[0].fields[0].value
+    );
+    const chances = currentChances - 1;
+    let arr = interaction.message.embeds[0].description.split('\n').reverse();
+    arr[chances] = newWord;
+    let newDesc = arr.reverse().join('\n');
+
+    const count = arr.reduce(
+      (count, el) => (!el.includes('◻️') ? count + 1 : count),
+      0
+    );
+    let msg = {
+      content: `<@${interaction.user.id}>'s game`,
+      tts: false,
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              style: 1,
+              label: `GUESS`,
+              custom_id: `guess`,
+              disabled: true,
+              emoji: {
+                id: null,
+                name: `🧐`,
+              },
+              type: 2,
+            },
+          ],
+        },
+      ],
+      embeds: [
+        {
+          type: 'rich',
+          title: `WORDLE- GAME OVER`,
+          description: `${newDesc}`,
+          color: 0xff0000,
+          fields: [
+            {
+              name: `🏆 YOU WON`,
+              value: `Your performance: \`${count}/6\``,
+            },
+          ],
+          footer: {
+            text: `Use ${prefix}help for rules and context about the game`,
+          },
+        },
+      ],
+    };
+    if (!wordArr.some((element) => !element.includes('green'))) {
+      await keyv.delete(interaction.message.id);
+    } else if (currentChances == 1) {
+      msg.embeds[0].fields[0].name = '🦆 You Lost';
+      msg.embeds[0].fields[0].value = `The word was ${answer}`;
+      await keyv.delete(interaction.message.id);
+    } else {
+      msg.components[0].components[0].disabled = false;
+      msg.embeds[0].fields[0].name = '🎚️ Chances Left :';
+      msg.embeds[0].fields[0].value = chances;
+      msg.embeds[0].title = 'WORDLE';
+      msg.embeds[0].description = newDesc;
+    }
+    await interaction.deferUpdate();
+    await interaction.message.edit(msg);
+  } else {
+    await interaction.reply({
+      content: 'Please enter a valid word.',
+      ephemeral: true,
+    });
+  }
 }
 
 function getColoredWord(answer, guess) {
@@ -247,7 +265,7 @@ function getAlphabetIndex(int) {
   return String.fromCharCode(baseCharCode + int);
 }
 async function setupEmote() {
-  console.log('Setting up Emotes...\nPlease wait till it completes...');
+  console.log('Setting up Emotes...\nPlease wait till it’s completes...');
 
   let emojiObj = {
     green: {},
