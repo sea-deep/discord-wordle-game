@@ -1,9 +1,10 @@
 {
-  "prefix": "+",
+  "prefix": "!",
   "token": "BOT_TOKEN_HERE",
   "emoji_stash_servers": [
-    "1057991809994858506",
-    "1057956245820145664",
-    "1057986667983683675"
-  ]
+    "SERVER_ID_1",
+    "SERVER_ID_2",
+    "SERVER_ID_3"
+  ],
+  "setup_required": true
 }
