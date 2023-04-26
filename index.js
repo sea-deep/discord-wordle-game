@@ -312,7 +312,7 @@ async function setupEmote() {
     }
     console.log(done!)
   }
-  let json = JSON.stringify(emojiObj);
+  let json = JSON.stringify(emojiObj, null, 2);
   fs.writeFile('emojis.json', json, (err) => { if (err) throw err; });
 
   const configObj = JSON.parse(fs.readFileSync('config.json'));
