@@ -1,6 +1,7 @@
 const {Client, GatewayIntentBits, Partials} = require('discord.js');
 const Keyv = require('keyv');
 const fs = require('fs');
+
 const {prefix, token, emoji_stash_servers, setup_required} = require('./config.json');
 const {words, ALL_WORDS} = require('./words.json');
 const emojis = require('./emojis.json');
@@ -15,6 +16,7 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
+//instance of key/value
 const keyv = new Keyv();
 
 client.on('ready', async () => {
@@ -25,10 +27,10 @@ client.on('ready', async () => {
 });
 
 client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
-  if (!message.content.startsWith(prefix)) return;
+  if (message.author.bot) return; //ignore bot messages
+  if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return; //if message does not starts with prefix
   const args = message.content.slice(prefix.length).split(' ');
-  const command = args.shift().toLowerCase();
+  const command = args.shift().toLowerCase(); //the command used by the user, without the prefix 
   switch (command) {
     case 'help':
       await sendHelp(message);
@@ -56,6 +58,14 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+client.on('error', function (err) {
+  console.log(err);
+  client.login(token);
+});
+
+client.login(token);
+
+//Defining all the functions used above
 async function sendGame(message) {
   let msg = await message.reply({
     content: `<@${message.author.id}>'s game`,
@@ -106,10 +116,19 @@ async function sendGame(message) {
 
   let key = msg.id;
   let val = words[Math.floor(Math.random() * words.length)];
-
-  await keyv.set(key, val, 7500000);
+  await keyv.set(key, val, 75000000);
 }
 async function sendHelp(message) {
+const desc = [
+  `• After each guess, the color of the tiles will change to show how close your guess was to the word.\n`,
+`**Tile color meanings:**\n`,
+`${emojis.green.w} ${emojis.gray.e} ${emojis.gray.a} ${emojis.gray.r} ${emojis.gray.y}`,
+`The letter **W** is present in this word and is in the correct spot.\n`,
+`${emojis.gray.p} ${emojis.gray.i} ${emojis.yellow.v} ${emojis.gray.o} ${emojis.gray.t}`,
+`The letter **V** is in the word but in wrong spot.\n`,
+`${emojis.green.v} ${emojis.green.a} ${emojis.gray.l} ${emojis.green.u} ${emojis.green.e}`,
+`The letter **L** is not in the word in any spot`
+].join(`\n`);
   await message.channel.send({
     content: `**HOW TO PLAY**`,
     tts: false,
@@ -117,7 +136,7 @@ async function sendHelp(message) {
       {
         type: 'rich',
         title: `Guess the WORDLE in 6 tries.`,
-        description: `• After each guess, the color of the tiles will change to show how close your guess was to the word.\n\n**Tile color meanings:**\n\n${emojis.green.w} ${emojis.gray.e} ${emojis.gray.a} ${emojis.gray.r} ${emojis.gray.y}\nThe letter **W** is present in this word and is in the correct spot.\n\n${emojis.gray.p} ${emojis.gray.i} ${emojis.yellow.v} ${emojis.gray.o} ${emojis.gray.t}\nThe letter **V** is in the word but in wrong spot.\n\n${emojis.green.v} ${emojis.green.a} ${emojis.gray.l} ${emojis.green.u} ${emojis.green.e}\nThe letter **L** is not in the word in any spot`,
+        description: desc,
         color: 0xa9f,
         footer: {
           text: `Play now ${prefix}start`,
@@ -126,6 +145,7 @@ async function sendHelp(message) {
     ],
   });
 }
+
 async function createModal(interaction) {
   if (interaction.message.content.includes(interaction.user.id)) {
     await interaction.showModal({
@@ -156,24 +176,25 @@ async function createModal(interaction) {
     });
   }
 }
+
 async function executeModal(interaction) {
   const value = interaction.fields.getTextInputValue('answer');
-  if (ALL_WORDS.includes(value.toLowerCase())) {
+  if (ALL_WORDS.includes(value.toLowerCase())) { //if the word is valid.
     const answer = await keyv.get(interaction.message.id);
-    const wordArr = getColoredWord(answer, value);
-    const newWord = wordArr.join(' ');
-    const currentChances = parseInt(
+    const wordArr = getColoredWord(answer, value); //Calling getColoredWord function to get the coloured alphabet emote's array
+    const colouredWord = wordArr.join(' '); //Joining it
+    const oldChances = parseInt(
       interaction.message.embeds[0].fields[0].value
-    );
-    const chances = currentChances - 1;
-    let arr = interaction.message.embeds[0].description.split('\n').reverse();
-    arr[chances] = newWord;
-    let newDesc = arr.reverse().join('\n');
+    ); //Chances before the modal was submitted
+    const newChances = oldChances - 1; //Decrementing a turn to continue game.
+    let descArr = interaction.message.embeds[0].description.split('\n').reverse(); //Splitting the description from new lines, then reversing it.
+    descArr[newChances] = colouredWord;//Replacing the next '◻️ ◻️ ◻️ ◻️ ◻️' with the coloured word, which was entered by the player
+   let newDesc = descArr.reverse().join('\n'); //getting the new description up by reversing and joining with new lines.
 
-    const count = arr.reduce(
+    const count = descArr.reduce(
       (count, el) => (!el.includes('◻️') ? count + 1 : count),
       0
-    );
+    );//Turns taken by the player reaching the correct word.
     let msg = {
       content: `<@${interaction.user.id}>'s game`,
       tts: false,
@@ -198,7 +219,7 @@ async function executeModal(interaction) {
       embeds: [
         {
           type: 'rich',
-          title: `WORDLE- GAME OVER`,
+          title: `WORDLE`,
           description: `${newDesc}`,
           color: 0xff0000,
           fields: [
@@ -212,22 +233,23 @@ async function executeModal(interaction) {
           },
         },
       ],
-    };
+    }; // The message when the player wins, it is updated below depending on the game status 
     if (!wordArr.some((element) => !element.includes('green'))) {
+      // If the player wins
       await keyv.delete(interaction.message.id);
     } else if (currentChances == 1) {
+      // Updating the msg object for when the user loses
       msg.embeds[0].fields[0].name = '🦆 You Lost';
       msg.embeds[0].fields[0].value = `The word was ${answer}`;
       await keyv.delete(interaction.message.id);
     } else {
+      // If the game is not over
       msg.components[0].components[0].disabled = false;
       msg.embeds[0].fields[0].name = '🎚️ Chances Left :';
       msg.embeds[0].fields[0].value = chances;
-      msg.embeds[0].title = 'WORDLE';
-      msg.embeds[0].description = newDesc;
     }
-    await interaction.deferUpdate();
-    await interaction.message.edit(msg);
+    await interaction.deferUpdate();//Deferring the interaction as we are not responding to it.
+    await interaction.message.edit(msg);//Editing the game message
   } else {
     await interaction.reply({
       content: 'Please enter a valid word.',
@@ -265,8 +287,8 @@ function getAlphabetIndex(int) {
   return String.fromCharCode(baseCharCode + int);
 }
 async function setupEmote() {
-  console.log('Setting up Emotes...\nPlease wait till it’s completes...');
-
+  // For uploading accessible alphabet emotes and updating the emoji.json file.
+  console.log('Setting up Emotes...\n');
   let emojiObj = {
     green: {},
     gray: {},
@@ -288,24 +310,14 @@ async function setupEmote() {
       });
       emojiObj[colors[i]][getAlphabetIndex(j)] = `<:${emoji.name}:${emoji.id}>`;
     }
-    console.log(`Done!`);
+    console.log(done!)
   }
-  console.log(`Updating emojis.json file...`);
   let json = JSON.stringify(emojiObj);
-  fs.writeFile('emojis.json', json, (err) => {
-    if (err) throw err;
-    console.log('Process Completed\nemojis.json file configured successfully!');
-  });
+  fs.writeFile('emojis.json', json, (err) => { if (err) throw err; });
 
   const configObj = JSON.parse(fs.readFileSync('config.json'));
   configObj.setup_required = false;
   const updatedConfigData = JSON.stringify(configObj, null, 2);
   fs.writeFileSync('config.json', updatedConfigData);
+  console.log('Process Completed! Alphabet emotes are all set!');
 }
-
-client.on('error', function (err) {
-  console.log(err);
-  client.login(token);
-});
-
-client.login(token);
