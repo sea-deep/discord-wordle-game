@@ -310,7 +310,7 @@ async function setupEmote() {
       });
       emojiObj[colors[i]][getAlphabetIndex(j)] = `<:${emoji.name}:${emoji.id}>`;
     }
-    console.log(done!)
+    console.log('done!')
   }
   let json = JSON.stringify(emojiObj, null, 2);
   fs.writeFile('emojis.json', json, (err) => { if (err) throw err; });
