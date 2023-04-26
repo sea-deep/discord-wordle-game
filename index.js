@@ -237,7 +237,7 @@ async function executeModal(interaction) {
     if (!wordArr.some((element) => !element.includes('green'))) {
       // If the player wins
       await keyv.delete(interaction.message.id);
-    } else if (currentChances == 1) {
+    } else if (oldChances == 1) {
       // Updating the msg object for when the user loses
       msg.embeds[0].fields[0].name = '🦆 You Lost';
       msg.embeds[0].fields[0].value = `The word was ${answer}`;
@@ -246,7 +246,7 @@ async function executeModal(interaction) {
       // If the game is not over
       msg.components[0].components[0].disabled = false;
       msg.embeds[0].fields[0].name = '🎚️ Chances Left :';
-      msg.embeds[0].fields[0].value = chances;
+      msg.embeds[0].fields[0].value = newChances;
     }
     await interaction.deferUpdate();//Deferring the interaction as we are not responding to it.
     await interaction.message.edit(msg);//Editing the game message
