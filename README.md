@@ -1,7 +1,5 @@
 # Wordle in Discord!
 
-[![Invite my Wordle Bot](https://media.discordapp.net/attachments/895715784280653835/1100151208720744559/PicsArt_04-25-01.37.26.png)](https://dsc.gg/wordlebot)
-
 ### 🤓 Introduction
 This is a Discord bot that allows you to play the game of Wordle in your Discord Server. It is a simple yet addictive word guessing game that challenges players to guess a five-letter word in six chances.
 
